@@ -145,16 +145,47 @@ class Episodes(object):
         return process_method_on_list(self.get_next_episode_for_show, [d['tvshowid'] for d in all_shows])
 
     def get_next_episode_for_show(self, show_id):
-        '''get next unwatched episode for tvshow'''
-        filters = [kodi_constants.FILTER_UNWATCHED]
+        '''
+        get last played watched episode for show,
+        return next unwatched episode after that,
+        unless nothing after that, then return first episode
+        '''
+        filters = []
+        fields = ["playcount", "season"]
+        next_episode = None
         if not self.options["episodes_enable_specials"]:
             filters.append({"field": "season", "operator": "greaterthan", "value": "0"})
-        json_episodes = self.metadatautils.kodidb.episodes(sort=kodi_constants.SORT_EPISODE, filters=filters,
-                                                      limits=(0, 1), tvshowid=show_id)
-        if json_episodes:
-            return json_episodes[0]
-        else:
-            return None
+
+        # get the next unwatched episode after the last played episode
+        last_played_episode = self.metadatautils.kodidb.episodes(sort=kodi_constants.SORT_LASTPLAYED,
+                    filters=filters + [kodi_constants.FILTER_WATCHED], limits=(0, 1), tvshowid=show_id, fields=fields)
+        if last_played_episode:
+            last_played_episode = last_played_episode[0]
+            filter_season = last_played_episode["season"] - 1
+            filter_season = [{"field": "season", "operator": "greaterthan", "value": "%s" % filter_season}]
+            all_episodes = self.metadatautils.kodidb.episodes(sort=kodi_constants.SORT_EPISODE,
+                    filters=filters + filter_season, tvshowid=show_id, fields=fields)
+            # find index of last_played_episode in the list all_episodes
+            try:
+                for index, episode in enumerate(all_episodes):
+                    if episode['episodeid'] == last_played_episode['episodeid']:
+                        i = 1
+                        while True:
+                            if int(all_episodes[index + i]['playcount']) < 1:
+                                next_episode = all_episodes[index + i]
+                                break
+                            i += 1
+            except IndexError:
+                # no unplayed episodes left
+                next_episode = None
+        # just get the first unwatched episode (e.g. when we simply do not yet have any fully played episodes)
+        if not next_episode:
+            next_episode = self.metadatautils.kodidb.episodes(
+                sort=kodi_constants.SORT_EPISODE, filters=filters + [kodi_constants.FILTER_UNWATCHED],
+                limits=(0, 1), tvshowid=show_id, fields=fields)
+            next_episode = next_episode[0] if next_episode else None
+        # return full details for our episode
+        return self.metadatautils.kodidb.episode(next_episode["episodeid"]) if next_episode else None
 
     def unaired(self):
         ''' get all unaired episodes for shows in the library - provided by tvdb module'''

@@ -151,20 +151,19 @@ class Episodes(object):
         unless nothing after that, then return first episode
         '''
         filters = []
-        fields = ["playcount", "season"]
         next_episode = None
         if not self.options["episodes_enable_specials"]:
             filters.append({"field": "season", "operator": "greaterthan", "value": "0"})
 
         # get the next unwatched episode after the last played episode
         last_played_episode = self.metadatautils.kodidb.episodes(sort=kodi_constants.SORT_LASTPLAYED,
-                    filters=filters + [kodi_constants.FILTER_WATCHED], limits=(0, 1), tvshowid=show_id, fields=fields)
+                    filters=filters + [kodi_constants.FILTER_WATCHED], limits=(0, 1), tvshowid=show_id)
         if last_played_episode:
             last_played_episode = last_played_episode[0]
             filter_season = last_played_episode["season"] - 1
             filter_season = [{"field": "season", "operator": "greaterthan", "value": "%s" % filter_season}]
             all_episodes = self.metadatautils.kodidb.episodes(sort=kodi_constants.SORT_EPISODE,
-                    filters=filters + filter_season, tvshowid=show_id, fields=fields)
+                    filters=filters + filter_season, tvshowid=show_id)
             # find index of last_played_episode in the list all_episodes
             try:
                 for index, episode in enumerate(all_episodes):
@@ -182,7 +181,7 @@ class Episodes(object):
         if not next_episode:
             next_episode = self.metadatautils.kodidb.episodes(
                 sort=kodi_constants.SORT_EPISODE, filters=filters + [kodi_constants.FILTER_UNWATCHED],
-                limits=(0, 1), tvshowid=show_id, fields=fields)
+                limits=(0, 1), tvshowid=show_id)
             next_episode = next_episode[0] if next_episode else None
         # return full details for our episode
         return self.metadatautils.kodidb.episode(next_episode["episodeid"]) if next_episode else None
